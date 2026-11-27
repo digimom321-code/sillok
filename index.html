@@ -200,19 +200,56 @@ window.LV_WORKLET_URL = URL.createObjectURL(new Blob(["class LvMic extends Audio
   const doc = (path, file, kind, status, days, at, topic, extra) => Object.assign({path, file, kind, status, days, at, made: KD(days), topic}, extra || {});
   const FLOW = period => {
     const lim = {"24h": 1, "7d": 7, "30d": 30}[period] || 7;
-    const nodes = ["기조실", "개선", "비서제작", "번역", "교육", "법학AI학습", "합의부", "서면국", "논문 A"].map(id => ({id, n: 0, wait_in: 0}));
-    const E = [
-      {from: "논문 A", to: "개선", kind: "요청", state: "wait", docs: [doc("iw/req-0611.md", "논문A→개선_요청서_부존재주장_게이트.md", "요청", "대기", 1, MD(1), "「규정이 없다」 문단 자동 검색 게이트 요청")]},
-      {from: "개선", to: "논문 A", kind: "회신", state: "done", docs: [doc("iw/rep-0607.md", "개선→논문A_회신_판정5값.md", "회신", "처리", 3, MD(3), "판정 5값 적용 회신", {proc: MD(2)})]},
-      {from: "기조실", to: "논문 A", kind: "통지", state: "wait", docs: [doc("iw/notice-0612.md", "기조실→논문A_통지_인용양식_개정.md", "통지", "대기", 1, MD(1), "인용 양식 개정 통지")]},
-      {from: "기조실", to: "번역", kind: "통지", state: "done", docs: [doc("iw/notice-0609.md", "기조실→번역_통지_용어집_기준.md", "통지", "처리", 2, MD(2), "용어집 기준 통지", {proc: MD(2)}), doc("iw/notice-0604.md", "기조실→번역_통지_명칭.md", "통지", "처리", 5, MD(5), "과제 명칭 정리 통지", {proc: MD(4)})]},
-      {from: "번역", to: "개선", kind: "요청", state: "done", docs: [doc("iw/req-0603.md", "번역→개선_요청서_각주위치.md", "요청", "처리", 6, MD(6), "각주 같은 면 배치 검증 요청", {proc: MD(4)})]},
-      {from: "개선", to: "번역", kind: "회신", state: "done", docs: [doc("iw/rep-0605.md", "개선→번역_회신_각주위치.md", "회신", "처리", 4, MD(4), "각주 위치 검증 추가 회신", {proc: MD(4)})]},
-      {from: "교육", to: "비서제작", kind: "요청", state: "wait", docs: [doc("iw/req-0610.md", "교육→비서제작_요청서_주간알림.md", "요청", "대기", 2, MD(2), "주간 계획 알림 시각 변경 요청")]},
-      {from: "비서제작", to: "기조실", kind: "통지", state: "done", docs: [doc("iw/notice-0606.md", "비서제작→기조실_통지_상황판.md", "통지", "처리", 4, MD(4), "상황판 15분 갱신 통지", {proc: MD(3)})]},
-      {from: "서면국", to: "합의부", kind: "요청", state: "done", docs: [doc("iw/req-0602.md", "서면국→합의부_요청서_쟁점검토.md", "요청", "처리", 6, MD(6), "쟁점 2 교차 검토 요청", {proc: MD(5)})]},
-      {from: "법학AI학습", to: "개선", kind: "통지", state: "gone", docs: [doc("iw/notice-0601.md", "법학AI학습→개선_통지_채점기.md", "통지", "철회", 7, MD(7), "문체 채점기 연결 통지(철회)", {by: "법학AI학습", date: MD(6)})]}
-    ].map(e => Object.assign(e, {docs: e.docs.filter(x => x.days <= lim)})).filter(e => e.docs.length).map((e, i) => Object.assign(e, {i, n: e.docs.length, wait: e.docs.filter(x => x.status === "대기").length, gone: e.docs.filter(x => x.status === "철회").length}));
+    const nodes = ["기조실", "개선", "비서제작", "법학AI학습", "논문 A", "보조화면", "홈서버", "번역", "교육", "합의부", "MCP제작", "논문 G", "보고서 B", "서면국", "모든 창"].map(id => ({id, n: 0, wait_in: 0}));
+    const KW = {"요청": "요청서", "통지": "통지", "회신": "회신"};
+    // [보낸 창, 받는 창, 종류, 건수, 대기 수, 철회 수, 주제들]
+    const SPEC = [
+      ["개선", "기조실", "회신", 6, 0, 0, ["판정 5값 적용 결과", "인계 줄 규칙 반영", "상황판 칸 추가", "잠금 해제 절차 정리", "모델 원장 집계 방식", "게이트 표 개정"]],
+      ["기조실", "개선", "요청", 4, 2, 0, ["부존재 주장 게이트 강화", "인용 대장 점검 주기", "창 이름 별칭 표 정리", "회차 보고 머리 3줄"]],
+      ["기조실", "비서제작", "요청", 3, 1, 0, ["상황판 15분 갱신", "할 일 알림 묶음", "다이제스트 구획 추가"]],
+      ["비서제작", "기조실", "통지", 3, 0, 0, ["상황판 갱신 완료", "알림 시각 변경 반영", "수집 원천 2곳 추가"]],
+      ["개선", "비서제작", "요청", 2, 1, 0, ["회차 끝 알림 형식", "자동 닫기 기준"]],
+      ["비서제작", "개선", "회신", 3, 0, 0, ["끝 알림 합치기 반영", "자동 닫기 24시간", "재시작 복구 시험"]],
+      ["법학AI학습", "개선", "통지", 2, 0, 1, ["문체 채점기 연결", "문자 인식 모델 교체"]],
+      ["개선", "법학AI학습", "요청", 2, 1, 0, ["채점 기준 표 공유", "학습 자료 반출 금지 점검"]],
+      ["보조화면", "비서제작", "요청", 2, 1, 0, ["폰 화면 글자 크기", "음성 답 버튼 위치"]],
+      ["법학AI학습", "보조화면", "통지", 2, 0, 0, ["로컬 모델 상태 칸", "학습 진행률 표시"]],
+      ["홈서버", "법학AI학습", "통지", 2, 0, 0, ["GPU 메모리 여유 알림", "야간 학습 창 확보"]],
+      ["번역", "법학AI학습", "요청", 1, 0, 0, ["용어 대역 자료 학습"]],
+      ["기조실", "번역", "통지", 2, 1, 0, ["용어집 기준 통지", "과제 명칭 정리"]],
+      ["번역", "개선", "요청", 2, 0, 0, ["각주 같은 면 배치 검증", "역문 면 맞춤 점검"]],
+      ["개선", "번역", "회신", 2, 1, 0, ["각주 위치 검증 추가", "면 맞춤 게이트 추가"]],
+      ["개선", "교육", "통지", 2, 1, 0, ["연수 교재 형식 점검", "판례 사건번호 확인 규칙"]],
+      ["교육", "비서제작", "요청", 1, 1, 0, ["주간 계획 알림 시각 변경"]],
+      ["논문 A", "개선", "요청", 3, 1, 0, ["「규정이 없다」 문단 자동 검색", "각주 면수 대조 속도", "블라인드 검토 순서"]],
+      ["개선", "논문 A", "회신", 3, 0, 0, ["판정 5값 적용", "면수 대조 병렬화", "검토 순서 변경"]],
+      ["기조실", "논문 A", "통지", 2, 1, 0, ["인용 양식 개정", "투고 규정 대조표 갱신"]],
+      ["논문 G", "기조실", "요청", 2, 1, 0, ["비교표 원문 확인 지원", "국외 법령 DB 추가"]],
+      ["기조실", "논문 G", "회신", 1, 0, 0, ["비교 기준 5개 확정"]],
+      ["보고서 B", "기조실", "요청", 1, 1, 0, ["목차안 선택"]],
+      ["합의부", "기조실", "통지", 3, 0, 0, ["교차 검토 결과", "답 비교표 형식", "좌석 배정 변경"]],
+      ["합의부", "논문 G", "통지", 2, 0, 0, ["반대 논거 3건", "비교 대상국 근거 보강"]],
+      ["서면국", "합의부", "요청", 2, 0, 0, ["쟁점 2 교차 검토", "소멸시효 반박 검토"]],
+      ["MCP제작", "합의부", "요청", 2, 1, 0, ["판례 검색 도구 시험", "응답 형식 교차 확인"]],
+      ["MCP제작", "개선", "통지", 1, 0, 0, ["판례 검색 연결 완료"]],
+      ["기조실", "모든 창", "통지", 2, 1, 0, ["인계 저장 줄 규칙", "창 이름 정리"]],
+      ["모든 창", "개선", "회신", 1, 0, 0, ["인계 줄 적용 확인"]]
+    ];
+    let seq = 0;
+    const DAYS = [0, 1, 1, 2, 3, 4, 5, 6, 9, 13, 18, 24];
+    const E = SPEC.map(([from, to, kind, cnt, w, g, tops], ei) => {
+      const docs = [];
+      for (let k = 0; k < cnt; k++) {
+        const days = k < w ? [0, 1, 2][(ei + k) % 3] : DAYS[(ei * 3 + k * 5) % DAYS.length];
+        const st = k < w ? "대기" : (k === cnt - 1 && g ? "철회" : "처리");
+        const t = tops[k % tops.length] + (k >= tops.length ? " " + (k + 1) : "");
+        const id = String(++seq).padStart(3, "0");
+        docs.push(doc("iw/" + kind + "-" + id + ".md", from.replace(/ /g, "") + "→" + to.replace(/ /g, "") + "_" + KW[kind] + "_" + t.replace(/[「」 ]/g, "_").replace(/_+/g, "_") + ".md", kind, st, days, MD(days), t + " " + kind,
+          st === "처리" ? {proc: MD(Math.max(0, days - 1))} : st === "철회" ? {by: from, date: MD(Math.max(0, days - 1))} : {}));
+      }
+      return {from, to, kind, docs};
+    }).map(e => Object.assign(e, {docs: e.docs.filter(x => x.days <= lim)})).filter(e => e.docs.length).map((e, i) => Object.assign(e, {i, n: e.docs.length, wait: e.docs.filter(x => x.status === "대기").length, gone: e.docs.filter(x => x.status === "철회").length}))
+      .map(e => Object.assign(e, {state: e.wait ? "wait" : e.gone === e.n ? "gone" : "done"}));
     for (const e of E) { for (const k of [e.from, e.to]) nodes.find(n => n.id === k).n += e.n; nodes.find(n => n.id === e.to).wait_in += e.wait; }
     nodes.forEach(n => { n.dim = !n.n; });
     const all = E.flatMap(e => e.docs.map(x => Object.assign({}, x, {from_: e.from, to: e.to, to_list: [e.to], edge: e.i})));
@@ -220,7 +257,7 @@ window.LV_WORKLET_URL = URL.createObjectURL(new Blob(["class LvMic extends Audio
     const waiting = all.filter(x => x.status === "대기").sort((a, b) => b.days - a.days);
     const byKind = k => recent.filter(x => x.kind === k);
     const eOf = path => (all.find(x => x.path === path) || {}).edge;
-    const pairs = [["iw/req-0603.md", "iw/rep-0605.md"], [null, "iw/rep-0607.md"]].map(([rq, rp]) => { const b = all.find(x => x.path === rp), a = rq && all.find(x => x.path === rq); return b ? {request: a ? {edge: a.edge, path: a.path, file: a.file} : null, reply: {edge: b.edge, path: b.path, file: b.file, at: b.at, status: b.status}} : null; }).filter(Boolean);
+    const pairs = E.filter(e => e.kind === "요청").map(e => { const r = E.find(x => x.kind === "회신" && x.from === e.to && x.to === e.from); return r ? [e.docs[e.docs.length - 1].path, r.docs[0].path] : null; }).filter(Boolean).map(([rq, rp]) => { const b = all.find(x => x.path === rp), a = rq && all.find(x => x.path === rq); return b ? {request: a ? {edge: a.edge, path: a.path, file: a.file} : null, reply: {edge: b.edge, path: b.path, file: b.file, at: b.at, status: b.status}} : null; }).filter(Boolean);
     return {ok: true, period: period || "7d", period_label: {"24h": "오늘·어제", "7d": "7일", "30d": "30일"}[period] || "7일", total: all.length, wait: waiting.length, unknown: 0, nodes, edges: E, recent, recent_by_kind: {"요청": byKind("요청"), "통지": byKind("통지"), "회신": byKind("회신")},
       waiting, wait_by_kind: {"요청": waiting.filter(x => x.kind === "요청").length, "통지": waiting.filter(x => x.kind === "통지").length},
       pairs,
@@ -756,6 +793,25 @@ window.LV_WORKLET_URL = URL.createObjectURL(new Blob(["class LvMic extends Audio
   const tourStop = () => { if (!TOUR.on) return; TOUR.on = false; TOUR.run++; pill(); try { const ta = document.getElementById("thcmd-t"); if (ta && ta === document.activeElement && ta.value && !ta.dataset.user) { ta.value = ""; ta.dispatchEvent(new Event("input", {bubbles: true})); } } catch (e) {} };
   D.tour = {start: tourStart, stop: tourStop, state: TOUR};
   ["pointerdown", "keydown", "touchstart", "wheel"].forEach(ev => window.addEventListener(ev, e => { if (!e.isTrusted) return; if (e.target && e.target.id === "demo-tour") return; TOUR.idleAt = Date.now(); tourStop(); }, {capture: true, passive: true}));
+  // 공유 흐름도 — 기조실(위)·개선(아래)을 가운데 세로로 두고 나머지 창은 둘레에
+  const ctrGeom = () => {
+    if (typeof flow1Geom !== "function" || flow1Geom.__demo || typeof D6R_BOX === "undefined") return false;
+    const g0 = flow1Geom;
+    const f = function (nodes, W, opts) {
+      const B = D6R_BOX, live = id => (nodes || []).some(n => n.id === id && !(n.dim && !n.center));
+      if (!live("기조실") || !live("개선") || W < 560) return g0(nodes, W, opts);
+      const off = B.h / 2 + 50, o = Object.assign({}, opts || {});
+      o.minH = Math.max(o.minH || 0, 2 * (B.pad + B.h + 30 + off + B.h / 2));
+      o.links = (o.links || []).map(l => l.map(x => x === "개선" ? "기조실" : x));
+      const G = g0(nodes.filter(n => n.id !== "개선"), W, o);
+      if (G.hub && G.hub !== "기조실" && G.P["기조실"]) { const t = G.P[G.hub]; G.P[G.hub] = G.P["기조실"]; G.P["기조실"] = t; }
+      const c = G.P["기조실"]; if (!c) return g0(nodes, W, opts);
+      G.P["기조실"] = [c[0], c[1] - off]; G.P["개선"] = [c[0], c[1] + off]; G.hub = "기조실";
+      return G;
+    };
+    f.__demo = true; flow1Geom = f; return true;
+  };
+  document.addEventListener("DOMContentLoaded", () => { if (ctrGeom() && typeof VIEW !== "undefined" && VIEW === "share" && typeof render === "function") try { render(); } catch (e) {} });
   window.addEventListener("load", () => {
     let n = 0; const t = setInterval(() => { if (window.__LV_MAIN_RAN && typeof go === "function") { clearInterval(t); pill(); setTimeout(() => { if (Date.now() - TOUR.idleAt > 3000) tourStart(); }, 4000);
       setInterval(() => { if (!TOUR.on && Date.now() - TOUR.idleAt > 90000) tourStart(); }, 5000); } else if (++n > 80) clearInterval(t); }, 250);
@@ -17299,7 +17355,7 @@ function d7jTaskStep(st) {
  const hit = all.map((x, i) => Object.assign({
   i: i
  }, x)).filter(x => !q || (x.k.label + " " + x.k.id + " " + x.f).toLowerCase().replace(/\s+/g, "").includes(q)).sort((a, b) => (!q && st._fn ? (b.f === st._fn) - (a.f === st._fn) : 0) || (a.k.state === "끝남") - (b.k.state === "끝남")).slice(0, 14);
- return `<div class="step" id="s-task"><div class="h"><b>0</b> 과제 <span class="muted">— ${cur ? `고름: <b>${esc(cur.k.label)}</b>(${esc(cur.f)})` : st.track ? `직접 넣음: <b>${esc(st.track)}</b>` : "과제 없이"}</span></div>` + `<div style="display:flex;gap:6px"><input id="s-tq" value="${esc(st._tq || "")}" placeholder="과제 찾기 — 이름 일부(예: 스포츠 · EDU · 번역 · TPF)" autocomplete="off"><button class="b ${!st.track ? "on" : ""}" id="s-tnone">과제 없이</button></div>` + (!q && st._fn ? `<small class="muted">지금 보던 묶음 「${esc(st._fn)}」 과제 먼저 — 다른 과제는 이름 일부로 찾기</small>` : "") + `<div class="d7jtl">${hit.map(x => `<button class="b ${x.k.id === st.track ? "on" : ""}" data-ti="${x.i}" title="${esc(x.k.id)}">${esc(x.k.label)} <small class="muted">${esc(x.f)}${x.k.state === "끝남" ? " · 끝남" : ""}</small></button>`).join("") || '<small class="muted">맞는 과제 없음 — 아래 「＋ 과제 추가」로 더할 수 있어요</small>'}</div>` + (typeof d7oTaskForm === "function" ? st._add ? `<div class="d7oin">${d7oTaskForm("sa", st._fn || "")}<button class="b pri" id="s-addgo">과제 더하고 고르기</button> <button class="b" id="s-addx">닫기</button></div>` : `<a href="#" class="c2more" id="s-add">＋ 과제 추가</a>` : "") + `</div>`;
+ return `<div class="step" id="s-task"><div class="h"><b>0</b> 과제 <span class="muted">— ${cur ? `고름: <b>${esc(cur.k.label)}</b>(${esc(cur.f)})` : st.track ? `직접 넣음: <b>${esc(st.track)}</b>` : "과제 없이"}</span></div>` + `<div style="display:flex;gap:6px"><input id="s-tq" value="${esc(st._tq || "")}" placeholder="과제 찾기 — 이름 일부(예: 논문 · EDU · 번역 · MCP)" autocomplete="off"><button class="b ${!st.track ? "on" : ""}" id="s-tnone">과제 없이</button></div>` + (!q && st._fn ? `<small class="muted">지금 보던 묶음 「${esc(st._fn)}」 과제 먼저 — 다른 과제는 이름 일부로 찾기</small>` : "") + `<div class="d7jtl">${hit.map(x => `<button class="b ${x.k.id === st.track ? "on" : ""}" data-ti="${x.i}" title="${esc(x.k.id)}">${esc(x.k.label)} <small class="muted">${esc(x.f)}${x.k.state === "끝남" ? " · 끝남" : ""}</small></button>`).join("") || '<small class="muted">맞는 과제 없음 — 아래 「＋ 과제 추가」로 더할 수 있어요</small>'}</div>` + (typeof d7oTaskForm === "function" ? st._add ? `<div class="d7oin">${d7oTaskForm("sa", st._fn || "")}<button class="b pri" id="s-addgo">과제 더하고 고르기</button> <button class="b" id="s-addx">닫기</button></div>` : `<a href="#" class="c2more" id="s-add">＋ 과제 추가</a>` : "") + `</div>`;
 }
 function d7jWireTaskStep(dlg, st, sync, draw, bare) {
  const all = typeof d7jAllTasks === "function" ? d7jAllTasks() : [];
