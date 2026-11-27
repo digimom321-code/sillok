@@ -695,12 +695,31 @@ window.LV_WORKLET_URL = URL.createObjectURL(new Blob(["class LvMic extends Audio
     let p = document.getElementById("demo-tour");
     if (!p) {
       p = document.createElement("button"); p.id = "demo-tour"; p.type = "button";
-      p.style.cssText = "position:fixed;right:18px;bottom:86px;z-index:9999;border:1px solid rgba(120,90,60,.35);background:rgba(255,252,246,.94);color:#5b4230;border-radius:999px;padding:7px 14px;font:600 12.5px/1.2 'Noto Sans KR',sans-serif;box-shadow:0 4px 14px rgba(60,40,20,.14);cursor:pointer;backdrop-filter:blur(4px)";
-      if (window.innerWidth < 700) { p.style.bottom = "auto"; p.style.top = "62px"; p.style.right = "10px"; p.style.fontSize = "11.5px"; p.style.padding = "5px 11px"; }
+      const st = document.createElement("style");
+      st.textContent = `#demo-tour{position:fixed;right:22px;bottom:84px;z-index:9999;display:flex;align-items:center;gap:9px;border:0;border-radius:999px;padding:11px 20px 11px 16px;font:700 14.5px/1.2 'Noto Sans KR',sans-serif;cursor:pointer;color:#fff;background:#8f3324;box-shadow:0 6px 22px rgba(143,51,36,.42),0 0 0 3px rgba(255,255,255,.85)}
+#demo-tour:hover{filter:brightness(1.08)}
+#demo-tour .dt-i{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#fff;color:#8f3324;font-size:11px}
+#demo-tour.off{animation:dtPulse 1.8s ease-in-out infinite}
+#demo-tour.on{background:#2f4a3e;box-shadow:0 6px 22px rgba(47,74,62,.40),0 0 0 3px rgba(255,255,255,.85)}
+#demo-tour.on .dt-i{color:#2f4a3e}
+#demo-tour.on .dt-i::after{content:"";width:9px;height:9px;border-radius:2px;background:currentColor}
+#demo-tour .dt-dot{width:8px;height:8px;border-radius:50%;background:#9fe0b4;animation:dtBlink 1s steps(2) infinite}
+@keyframes dtPulse{0%,100%{transform:scale(1);box-shadow:0 6px 22px rgba(143,51,36,.42),0 0 0 3px rgba(255,255,255,.85)}50%{transform:scale(1.06);box-shadow:0 8px 30px rgba(143,51,36,.6),0 0 0 7px rgba(143,51,36,.18)}}
+@keyframes dtBlink{50%{opacity:.25}}
+@media (max-width:700px){#demo-tour{top:60px;bottom:auto;right:10px;font-size:12.5px;padding:8px 14px 8px 11px}#demo-tour .dt-i{width:20px;height:20px}#demo-tour small{display:none}}
+#main.full > #d6rbg{max-height:none}
+#d6rbg .d6rbgbox{margin:0 0 6px;padding:8px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:26px}
+#d6rbg .d6rbgbox h2{grid-column:1/-1;font-size:14px;margin:0 0 2px}
+#d6rbg .d6rbgrow{padding:3px 0}
+#d6rbg .d6rbgrow b{font-size:13px}
+#d6rbg .d6rbgrow small{display:inline;margin-left:8px}
+#d6rbg .d6rbgrow .b{padding:2px 10px;font-size:12px}`;
+      document.head.appendChild(st);
       p.onclick = e => { e.stopPropagation(); if (TOUR.on) tourStop(); else tourStart(); };
       document.body.appendChild(p);
     }
-    p.textContent = TOUR.on ? "● 저절로 둘러보는 중 — 누르면 멈춤" : "▶ 저절로 둘러보기";
+    p.className = TOUR.on ? "on" : "off";
+    p.innerHTML = TOUR.on ? '<span class="dt-i"></span>자동 둘러보는 중<span class="dt-dot"></span><small style="font-weight:500;opacity:.85">· 누르면 멈춤</small>' : '<span class="dt-i">▶</span>자동으로 둘러보기';
     return p;
   };
   const typeIn = async (hostId, text, run) => {
@@ -710,24 +729,24 @@ window.LV_WORKLET_URL = URL.createObjectURL(new Blob(["class LvMic extends Audio
     await sleep(500); return TOUR.run === run;
   };
   const waitFor = async (fn, max, run) => { const t0 = Date.now(); while (Date.now() - t0 < max) { if (TOUR.run !== run) return false; if (fn()) return true; await sleep(300); } return TOUR.run === run; };
-  const openThread = id => { const b = document.querySelector(`#thlist [data-th="${id}"]`); if (b) { const g = b.closest("details"); if (g) g.open = true; b.scrollIntoView({block: "nearest"}); b.click(); } else { B2.thSel = id; go("chat"); b2LoadThread(id, true); } };
+  const openThread = id => { const b = document.querySelector(`#thlist [data-th="${id}"]`); if (b && b.offsetParent) { const g = b.closest("details"); if (g) g.open = true; b.scrollIntoView({block: "nearest"}); b.click(); } else { B2.thSel = id; try { localStorage.setItem("v2_thsel", id); } catch (e) {} go("chat"); b2LoadThread(id, true); } };
+  const aimed = id => { try { const t = (B2.cmd.thcmd || {}).target || {}; return B2.thSel === id && t.id === id; } catch (e) { return false; } };
   const tourLoop = async run => {
     const ok = () => TOUR.run === run;
     const SEQ = [["th6", 0], ["th7", 1], ["th8", 2]];
-    const FOCUS = [["p1", "p11"], ["p8", "p2"], ["p12", "p16"]];
     while (ok()) {
       const [tid, si] = SEQ[TOUR.k % SEQ.length]; TOUR.k++;
       go("home"); await sleep(5200); if (!ok()) return;
-      const ph = typeof b2IsPhone === "function" ? b2IsPhone() : window.innerWidth < 700;
-      if (!ph) B2.mode = "board";
-      go("term"); await sleep(2500); if (!ok()) return;
-      if (!ph && typeof b2Focus === "function") { for (const fid of FOCUS[(TOUR.k - 1) % FOCUS.length]) { try { b2Focus(fid); } catch (e) {} await sleep(6500); if (!ok()) return; } }
-      else { await sleep(6000); if (!ok()) return; }
+      const ph = window.innerWidth < 700;
+      if (!ph) B2.mode = "grid";
+      go("term"); await sleep(7000); if (!ok()) return;
+      if (!ph) { for (let n = 0; n < 2; n++) { const nx = document.querySelector('#pager [data-pg="1"]'); if (nx) nx.click(); await sleep(6000); if (!ok()) return; } }
       B2.thSel = "secretary"; try { localStorage.setItem("v2_thsel", "secretary"); } catch (e) {} go("chat"); await sleep(1800); if (!ok()) return;
       if (await typeIn("thcmd", LIVE_SEC[si].q, run)) { try { b2Send("thcmd"); } catch (e) {} }
       await sleep(1500); await waitFor(() => typeof D6O === "undefined" || !D6O.live, 40000, run); await sleep(4500); if (!ok()) return;
       openThread(tid); await sleep(2200); if (!ok()) return;
-      if (await typeIn("thcmd", LIVE_TH[tid].q, run)) { try { b2Send("thcmd"); } catch (e) {} }
+      if (!aimed(tid)) { openThread(tid); await sleep(1500); }
+      if (aimed(tid) && await typeIn("thcmd", LIVE_TH[tid].q, run)) { try { b2Send("thcmd"); } catch (e) {} }
       await sleep(1500); await waitFor(() => !(THREADS.find(x => x.id === tid) || {}).busy, 45000, run); await sleep(4500); if (!ok()) return;
       go("share"); await sleep(6500); if (!ok()) return;
       go("todo"); await sleep(5000);
@@ -2477,7 +2496,7 @@ window.addEventListener("unhandledrejection", e => {
 "use strict";
 
 const B2 = {
- mode: "board",
+ mode: "grid",
  board: {
   groups: {},
   zoom: .9,
@@ -15604,7 +15623,7 @@ const TABS = [ "홈", "결정", "회차", "원장", "수집", "일정", "비서 
 let VIEW = "home", S = null, REFRESH = 15;
 let TH = {
  alive: false
-}, PANELS = [], DETACHED = [], THMEM = null, META = null, ACTIVE = null, LAYOUT = 2, CHAT = [];
+}, PANELS = [], DETACHED = [], THMEM = null, META = null, ACTIVE = null, LAYOUT = window.innerWidth >= 1800 ? 3 : 2, CHAT = [];
 let PTITLE = {};
 let PWAIT = {};
 let PLIVE = {};
